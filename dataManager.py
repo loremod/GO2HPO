@@ -1,11 +1,14 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from goatools.obo_parser import GODag
+from goatools.anno.genetogo_reader import Gene2GoReader
+
 
 class DataManager:
     def __init__(self):
         # Attributes
-        self.gene_symbol_id = {}  # Gene Symbol-ID associations (dictionary) 
+        self.gene_id_symbol = {}  # Gene Symbol-ID associations (dictionary) 
         self.hpo_name_id = {}     # HPO name-ID associations (dictionary) 
         self.go_id_name_association = {}  # GO ID-name associations (dictionary) 
         self.hpo_gene_data = None  # HPO-gene data (binary matrix)
@@ -47,17 +50,34 @@ class DataManager:
         return filteredDf
 
     # generate hpo-gene matrix
-    def generate_hpo_gene_matrix(self, file_path, L_bound = 50, R_bound = 100):
-        df_genes = pd.read_csv(file_path, sep="\t")
-        unique_gene_hpo_pairs = df_genes[['gene_symbol', 'ncbi_gene_id', 'hpo_id', 'hpo_name']].drop_duplicates()
+    def generate_hpo_gene_matrix(self, df, L_bound = None, R_bound = None):
+        unique_gene_hpo_pairs = df[['ncbi_gene_id', 'gene_symbol', 'hpo_id', 'hpo_name']].drop_duplicates()
+        updateGeneIdSymbolAssoc(data=unique_gene_hpo_pairs[['ncbi_gene_id', 'gene_symbol']], id_column='ncbi_gene_id', symbol_column='gene_symbol', reset=False)
         filteredHpoDf = self.filterByValueBoundaries(unique_gene_hpo_pairs, L_bound, R_bound)
-        sparse_pandas = pd.crosstab(filteredHpoDf['gene_symbol'], filteredHpoDf['hpo_id']).astype(pd.SparseDtype("int", fill_value=0))
+        sparse_pandas = pd.crosstab(filteredHpoDf['ncbi_gene_id'], filteredHpoDf['hpo_id']).astype(pd.SparseDtype("int", fill_value=0))
         self.hpo_gene_data = sparse_pandas
 
     # Import the HPO2GENES file
-    def importHPO2GeneFile(self, file_path):
-        df_hpo_genes = pd.read_csv(PHO2GENES_PATH, sep="\t")
-        self.generate_hpo_gene_matrix(df_hpo_genes)
+    def importHPO2GeneFile(self, file_path, L_bound = None, R_bound = None):
+        df_hpo_genes = pd.read_csv(file_path, sep="\t")
+        self.generate_hpo_gene_matrix(df_hpo_genes, L_bound = L_bound, R_bound = R_bound)
+
+
+    def importGO2GeneFile(self, go_ontology_path, gene2go_path, taxids):
+        godag = GODag(go_ontology_path)
+        gene2go_reader = Gene2GoReader(gene2go_path, godag=godag)
+        human_gene2go = gene2go_reader.get_id2gos(taxids=taxids)
+
+        # Create a row per Gene-Go_term association
+        rows = []
+        for gene, go_terms in human_gene2go.items():
+            for go_term in go_terms:
+                rows.append({"Gene": gene, "GO": go_term})
+
+        gene2go_assoc = pd.DataFrame(rows)
+        self.go_gene_data = gene2go_assoc.pivot_table(index="Gene", columns="GO", aggfunc=lambda x: 1, fill_value=0)
+        self.go_gene_data = self.go_gene_data.astype(pd.SparseDtype("int", fill_value=0))
+        self.go_gene_data.columns = self.go_gene_data.columns.get_level_values(0)
 
     # Getteer for custom dataset
     def get_dataset(self, hpo_list=None, go_list=None):
@@ -98,33 +118,17 @@ class DataManager:
 
         return combined_data
 
-    # Function to filter HPO terms
-    def filter_hpo(self, method, params=None):
-        """
-        Filter HPO terms based on the specified method and parameters.
-        
-        :param method: Filtering method to use.
-        :param params: Optional parameters for the filtering method.
-        """
-        # Implementation for filtering HPO terms
-        pass
-
-    # Function to filter GO terms
-    def filter_go(self, method, params=None):
-        """
-        Filter GO terms based on the specified method and discussions with the professor.
-        
-        :param method: Filtering method to use.
-        :param params: Optional parameters for the filtering method.
-        """
-        # Implementation for filtering GO terms
-        pass
 
 
+    # Show data
 
 
 
 if __name__ == "__main__":
+    # Prepare the logger
+    logger = LogManager(is_active=True)
+
+    # Initialize the DataManager class and import all the data
     DATA_PATH = "../../preparation/codice/"
     PHO2GENES_PATH = f"{DATA_PATH}phenotype_to_genes.txt"
     df_genes = pd.read_csv(PHO2GENES_PATH, sep="\t")
