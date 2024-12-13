@@ -122,6 +122,31 @@ class DataManager:
 
     # Show data
 
+    def hpo_head(self):
+        if self.hpo_selected != []:
+            selected_df = self.hpo_gene_data.loc[:, self.hpo_selected]
+            return selected_df.head()
+        return self.hpo_gene_data.head()
+    
+    def go_head(self):
+        if self.go_selected != []:
+            selected_df = self.go_gene_data.loc[:, self.go_selected]
+            return selected_df.head()
+        return self.go_gene_data.head()
+
+
+class LogManager:
+    def __init__(self, is_active=True):
+        self.is_silent = not is_active
+    def activate(self):
+        self.is_silent = False
+    def deactivate(self):
+        self.is_silent = True
+    def toggle(self):
+        self.is_silent = not self.is_silent
+    def log(self, *args):
+        if not self.is_silent:
+            print(*args)
 
 
 if __name__ == "__main__":
@@ -131,6 +156,26 @@ if __name__ == "__main__":
     # Initialize the DataManager class and import all the data
     DATA_PATH = "../../preparation/codice/"
     PHO2GENES_PATH = f"{DATA_PATH}phenotype_to_genes.txt"
-    df_genes = pd.read_csv(PHO2GENES_PATH, sep="\t")
-    print(df_genes.head())
+    GO_ONTOLOGY_PATH = f"{DATA_PATH}go-basic.obo" 
+    GENE2GO_PATH = f"{DATA_PATH}gene2go"  # Path to the downloaded gene2go file
+
     data_manager = DataManager()
+
+    # - HPO2Gene File
+    logger.log("Importing HPO2Genes file...")
+    data_manager.importHPO2GeneFile(PHO2GENES_PATH, L_bound = 50, R_bound = 100)
+    logger.log("HPO2Genes file imported.")
+    print(data_manager.hpo_head())
+
+    exit()
+    # - GO2Gene File
+    humanTaxID = 9606
+    GO_taxonomies = [humanTaxID]
+    logger.log("\nImporting GO2Genes file...")
+    data_manager.importGO2GeneFile(go_ontology_path=GO_ONTOLOGY_PATH, gene2go_path=GENE2GO_PATH, taxids = GO_taxonomies)
+    logger.log("GO2Genes file imported.")
+    print(data_manager.go_head())
+
+    
+
+    
