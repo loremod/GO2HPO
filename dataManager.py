@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from goatools.obo_parser import GODag
 from goatools.anno.genetogo_reader import Gene2GoReader
-
+from scipy.stats import chi2_contingency, fisher_exact
 
 class DataManager:
     def __init__(self):
@@ -17,16 +17,22 @@ class DataManager:
         self.go_selected = []      # Selected GO list
 
 
+    def _associateId2Symbol(self, row, id_column, symbol_column):
+        self.gene_id_symbol[row[id_column]] = row[symbol_column]
 
-    
-    def getCountDataset(self, df, id="hpo_id", to_count="gene_symbol", new_count_name = 'count'):
+    def updateGeneIdSymbolAssoc(self, data, id_column='ncbi_gene_id', symbol_column='gene_symbol', reset=False):
+        if reset == True:
+            self.gene_id_symbol = {}
+        data.apply(self._associateId2Symbol, axis=1, args=(id_column,symbol_column))
+
+    def getCountDataset(self, df, id="hpo_id", to_count="ncbi_gene_id", new_count_name = 'count'):
         df_count = df.groupby(id)[to_count].nunique()
         df_count = df_count.reset_index()
         df_count.columns = [id, new_count_name]
         return df_count
 
     def filterByValueBoundaries(self, df, L_bound=None, R_bound=None, is_df_counts = False, id="hpo_id", 
-                            to_count="gene_symbol", count_name='count'):
+                            to_count="ncbi_gene_id", count_name='count'):
         # return the original df in which both are None (misuse of the function)
         if L_bound == None and R_bound == None:
             return df
@@ -52,7 +58,7 @@ class DataManager:
     # generate hpo-gene matrix
     def generate_hpo_gene_matrix(self, df, L_bound = None, R_bound = None):
         unique_gene_hpo_pairs = df[['ncbi_gene_id', 'gene_symbol', 'hpo_id', 'hpo_name']].drop_duplicates()
-        updateGeneIdSymbolAssoc(data=unique_gene_hpo_pairs[['ncbi_gene_id', 'gene_symbol']], id_column='ncbi_gene_id', symbol_column='gene_symbol', reset=False)
+        self.updateGeneIdSymbolAssoc(data=unique_gene_hpo_pairs[['ncbi_gene_id', 'gene_symbol']], id_column='ncbi_gene_id', symbol_column='gene_symbol', reset=False)
         filteredHpoDf = self.filterByValueBoundaries(unique_gene_hpo_pairs, L_bound, R_bound)
         sparse_pandas = pd.crosstab(filteredHpoDf['ncbi_gene_id'], filteredHpoDf['hpo_id']).astype(pd.SparseDtype("int", fill_value=0))
         self.hpo_gene_data = sparse_pandas
@@ -78,6 +84,7 @@ class DataManager:
         self.go_gene_data = gene2go_assoc.pivot_table(index="Gene", columns="GO", aggfunc=lambda x: 1, fill_value=0)
         self.go_gene_data = self.go_gene_data.astype(pd.SparseDtype("int", fill_value=0))
         self.go_gene_data.columns = self.go_gene_data.columns.get_level_values(0)
+
 
     # Getteer for custom dataset
     def get_dataset(self, hpo_list=None, go_list=None):
@@ -119,6 +126,8 @@ class DataManager:
         return combined_data
 
 
+    def get_id_associations(self):
+        return self.gene_id_symbol
 
     # Show data
 
@@ -155,7 +164,8 @@ if __name__ == "__main__":
 
     # Initialize the DataManager class and import all the data
     DATA_PATH = "../../preparation/codice/"
-    PHO2GENES_PATH = f"{DATA_PATH}phenotype_to_genes.txt"
+    HPO2GENES_PATH = f"{DATA_PATH}phenotype_to_genes.txt"
+    HPO2GENES_PROVA_PATH = f"{DATA_PATH}HPO2Genes_head.csv"
     GO_ONTOLOGY_PATH = f"{DATA_PATH}go-basic.obo" 
     GENE2GO_PATH = f"{DATA_PATH}gene2go"  # Path to the downloaded gene2go file
 
@@ -163,11 +173,13 @@ if __name__ == "__main__":
 
     # - HPO2Gene File
     logger.log("Importing HPO2Genes file...")
-    data_manager.importHPO2GeneFile(PHO2GENES_PATH, L_bound = 50, R_bound = 100)
+    data_manager.importHPO2GeneFile(HPO2GENES_PATH, L_bound = 50, R_bound = 100)
     logger.log("HPO2Genes file imported.")
     print(data_manager.hpo_head())
+    # logger.log("Print the Gene ID - Gene Symbol associations")
+    # print(data_manager.get_id_associations())
 
-    exit()
+
     # - GO2Gene File
     humanTaxID = 9606
     GO_taxonomies = [humanTaxID]
@@ -176,6 +188,5 @@ if __name__ == "__main__":
     logger.log("GO2Genes file imported.")
     print(data_manager.go_head())
 
-    
 
-    
+    exit()
