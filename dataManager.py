@@ -13,8 +13,6 @@ class DataManager:
         self.go_id_name_association = {}  # GO ID-name associations (dictionary) 
         self.hpo_gene_data = None  # HPO-gene data (binary matrix)
         self.go_gene_data = None   # GO-gene data (binary matrix)
-        self.hpo_selected = []     # Selected HPO list
-        self.go_selected = []      # Selected GO list
 
 
     def _associateId2Symbol(self, row, id_column, symbol_column):
@@ -96,13 +94,13 @@ class DataManager:
         :return: Combined dataset as a single matrix.
         """
 
-        # Use hpo_selected if hpo_list is None
+        # Use all of them if hpo_list is None
         if hpo_list is None:
-            hpo_list = self.hpo_selected
+            hpo_list = self.hpo_gene_data.columns
 
-        # Use go_selected if go_list is None
+        # Use all of them if go_list is None
         if go_list is None:
-            go_list = self.go_selected
+            go_list = self.go_gene_data.columns
 
         # Filter the HPO-gene data based on the HPO list
         hpo_filtered_data = pd.DataFrame()
@@ -131,15 +129,15 @@ class DataManager:
 
     # Show data
 
-    def hpo_head(self):
-        if self.hpo_selected != []:
-            selected_df = self.hpo_gene_data.loc[:, self.hpo_selected]
+    def hpo_head(self, columns = []):
+        if columns != []:
+            selected_df = self.hpo_gene_data.loc[:, columns]
             return selected_df.head()
         return self.hpo_gene_data.head()
     
-    def go_head(self):
-        if self.go_selected != []:
-            selected_df = self.go_gene_data.loc[:, self.go_selected]
+    def go_head(self, columns):
+        if columns != []:
+            selected_df = self.go_gene_data.loc[:, columns]
             return selected_df.head()
         return self.go_gene_data.head()
 
