@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 from goatools.obo_parser import GODag
 from goatools.anno.genetogo_reader import Gene2GoReader
 from scipy.stats import chi2_contingency, fisher_exact
+from statsmodels.stats.multitest import multipletests
 
 class DataManager:
     def __init__(self):
@@ -13,6 +14,58 @@ class DataManager:
         self.go_id_name_association = {}  # GO ID-name associations (dictionary) 
         self.hpo_gene_data = None  # HPO-gene data (binary matrix)
         self.go_gene_data = None   # GO-gene data (binary matrix)
+
+    def compute_p_value(self, go_column, hpo_column, method = "chi2"):
+        #get the series from the column names
+        hpo_series = data_manager.hpo_gene_data[hpo_column]
+        go_series = data_manager.go_gene_data[go_column]
+        # Confusion matrix components
+        both = ((go_series == 1) & (hpo_series == 1)).sum()
+        only_go = ((go_series == 1) & (hpo_series == 0)).sum()
+        only_hpo = ((go_series == 0) & (hpo_series == 1)).sum()
+        neither = ((go_series == 0) & (hpo_series == 0)).sum()
+        # Contingency table with Laplace Smoothing to prevent some cells to have frequency 0
+        contingency_table = [[both + 1, only_hpo + 1],
+                            [only_go + 1, neither + 1]]
+        p_value = 1
+        # Chi-Square test (or switch to Fisher's Exact Test if preferred)
+        if method.lower() == "chi2":
+            _, p_value, _, _ = chi2_contingency(contingency_table)
+        elif method.lower() == "fisher":
+            _, p_value = fisher_exact(contingency_table) 
+        return p_value
+
+    # returns a dataframe obtained computing the go-term-wise significance with a specific hpo-term
+    # returns the p-values of the statistical tests for each go-term
+    # it is possible to apply different statistical tests
+    # it is possible to apply a correction
+    # it can return the significant go terms only, based on the p_value (if no correction is applied) 
+    # or on the adjusted_p_value, if correction is applied
+    # By default, the correction parameter is set to None, so no correction is applied
+    def compute_significance(self, hpo_column:str, go_columns:list = None,
+                              method:str = "chi2", only_significant:bool=True,
+                              correction:str = None):
+        # if go_columns is none, all of them are considered (default)
+        if go_columns is None:
+            go_columns = self.go_gene_data.columns
+
+        # Apply the function across GO columns (sampled)
+        p_values = go_columns.apply(lambda go_col: self.compute_p_value(go_col, hpo_column, method=method))
+
+        results_df = pd.DataFrame({'GO_Term': go_columns, 'P_Value': p_values.values})
+
+        if correction == None:
+            results_df['Significant']  = results_df['P_Value'] < 0.05
+        else:
+            corrected_results = multipletests(results_df['P_Value'], method=correction)
+            results_df['Adjusted_P_Value'] = corrected_results[1]  # Corrected p-values
+            results_df['Significant'] = corrected_results[0]       # True/False for significance
+    
+        # Filter significant GO terms
+        if only_significant == True:
+            return results_df[results_df['Significant']]
+        else:
+            return results_df
 
 
     def _associateId2Symbol(self, row, id_column, symbol_column):
@@ -177,7 +230,6 @@ if __name__ == "__main__":
     # logger.log("Print the Gene ID - Gene Symbol associations")
     # print(data_manager.get_id_associations())
 
-
     # - GO2Gene File
     humanTaxID = 9606
     GO_taxonomies = [humanTaxID]
@@ -185,6 +237,7 @@ if __name__ == "__main__":
     data_manager.importGO2GeneFile(go_ontology_path=GO_ONTOLOGY_PATH, gene2go_path=GENE2GO_PATH, taxids = GO_taxonomies)
     logger.log("GO2Genes file imported.")
     print(data_manager.go_head())
+
 
 
     exit()
