@@ -17,8 +17,12 @@ class DataManager:
 
     def compute_p_value(self, go_column, hpo_column, method = "chi2"):
         #get the series from the column names
-        hpo_series = data_manager.hpo_gene_data[hpo_column]
-        go_series = data_manager.go_gene_data[go_column]
+        hpo_series = self.hpo_gene_data[hpo_column]
+        go_series = self.go_gene_data[go_column]
+
+        # Align both Series to have the same index
+        hpo_series, go_series = hpo_series.align(go_series, join='inner')
+
         # Confusion matrix components
         both = ((go_series == 1) & (hpo_series == 1)).sum()
         only_go = ((go_series == 1) & (hpo_series == 0)).sum()
@@ -43,29 +47,29 @@ class DataManager:
     # or on the adjusted_p_value, if correction is applied
     # By default, the correction parameter is set to None, so no correction is applied
     def compute_significance(self, hpo_column:str, go_columns:list = None,
-                              method:str = "chi2", only_significant:bool=True,
-                              correction:str = None):
-        # if go_columns is none, all of them are considered (default)
-        if go_columns is None:
-            go_columns = self.go_gene_data.columns
+                                method:str = "chi2", only_significant:bool=True,
+                                correction:str = None):
+            # if go_columns is none, all of them are considered (default)
+            if go_columns is None:
+                go_columns = self.go_gene_data.columns
 
-        # Apply the function across GO columns (sampled)
-        p_values = go_columns.apply(lambda go_col: self.compute_p_value(go_col, hpo_column, method=method))
+            # Apply the function across GO columns (sampled)
+            p_values = [self.compute_p_value(go_col, hpo_column, method=method) for go_col in go_columns]
 
-        results_df = pd.DataFrame({'GO_Term': go_columns, 'P_Value': p_values.values})
+            results_df = pd.DataFrame({'GO_Term': go_columns, 'P_Value': p_values})
 
-        if correction == None:
-            results_df['Significant']  = results_df['P_Value'] < 0.05
-        else:
-            corrected_results = multipletests(results_df['P_Value'], method=correction)
-            results_df['Adjusted_P_Value'] = corrected_results[1]  # Corrected p-values
-            results_df['Significant'] = corrected_results[0]       # True/False for significance
-    
-        # Filter significant GO terms
-        if only_significant == True:
-            return results_df[results_df['Significant']]
-        else:
-            return results_df
+            if correction == None:
+                results_df['Significant']  = results_df['P_Value'] < 0.05
+            else:
+                corrected_results = multipletests(results_df['P_Value'], method=correction)
+                results_df['Adjusted_P_Value'] = corrected_results[1]  # Corrected p-values
+                results_df['Significant'] = corrected_results[0]       # True/False for significance
+        
+            # Filter significant GO terms
+            if only_significant == True:
+                return results_df[results_df['Significant']].reset_index(drop=True)
+            else:
+                return results_df
 
 
     def _associateId2Symbol(self, row, id_column, symbol_column):
@@ -181,14 +185,18 @@ class DataManager:
         return self.gene_id_symbol
 
     # Show data
-
+    def hpo_shape(self):
+        return self.hpo_gene_data.shape
+    def go_shape(self):
+        return self.go_gene_data.shape
+    
     def hpo_head(self, columns = []):
         if columns != []:
             selected_df = self.hpo_gene_data.loc[:, columns]
             return selected_df.head()
         return self.hpo_gene_data.head()
     
-    def go_head(self, columns):
+    def go_head(self, columns = []):
         if columns != []:
             selected_df = self.go_gene_data.loc[:, columns]
             return selected_df.head()
