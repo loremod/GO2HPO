@@ -5,6 +5,7 @@ from goatools.obo_parser import GODag
 from goatools.anno.genetogo_reader import Gene2GoReader
 from scipy.stats import chi2_contingency, fisher_exact
 from statsmodels.stats.multitest import multipletests
+from dataImportExport import DataExporter, DataImporter
 
 class DataManager:
     def __init__(self):
@@ -15,6 +16,13 @@ class DataManager:
         self.hpo_gene_data = None  # HPO-gene data (binary matrix)
         self.go_gene_data = None   # GO-gene data (binary matrix)
     
+    def export_attributes(self, export_dir: str):
+        exporter = DataExporter()
+        exporter.export_attributes(self, export_dir)
+ 
+    def import_attributes(self, import_dir: str):
+        importer = DataImporter()
+        importer.import_attributes(self, import_dir)
 
     def _associateId2Symbol(self, row, id_column, symbol_column):
         self.gene_id_symbol[row[id_column]] = row[symbol_column]
@@ -149,7 +157,7 @@ class DataManager:
             _, p_value = fisher_exact(contingency_table) 
         return p_value
     
-    def compute_p_value_batch(self, go_columns, hpo_column, method = "chi2"):
+    def compute_p_values_batch(self, go_columns, hpo_column, method = "chi2"):
         aligned_df = self.get_dataset(go_list=go_columns, hpo_list=hpo_column)
 
         hpo_series = aligned_df[hpo_column]
