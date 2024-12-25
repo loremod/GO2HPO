@@ -14,63 +14,7 @@ class DataManager:
         self.go_id_name_association = {}  # GO ID-name associations (dictionary) 
         self.hpo_gene_data = None  # HPO-gene data (binary matrix)
         self.go_gene_data = None   # GO-gene data (binary matrix)
-
-    def compute_p_value(self, go_column, hpo_column, method = "chi2"):
-        #get the series from the column names
-        hpo_series = self.hpo_gene_data[hpo_column]
-        go_series = self.go_gene_data[go_column]
-
-        # Align both Series to have the same index
-        hpo_series, go_series = hpo_series.align(go_series, join='inner')
-
-        # Confusion matrix components
-        both = ((go_series == 1) & (hpo_series == 1)).sum()
-        only_go = ((go_series == 1) & (hpo_series == 0)).sum()
-        only_hpo = ((go_series == 0) & (hpo_series == 1)).sum()
-        neither = ((go_series == 0) & (hpo_series == 0)).sum()
-        # Contingency table with Laplace Smoothing to prevent some cells to have frequency 0
-        contingency_table = [[both + 1, only_hpo + 1],
-                            [only_go + 1, neither + 1]]
-        p_value = 1
-        # Chi-Square test (or switch to Fisher's Exact Test if preferred)
-        if method.lower() == "chi2":
-            _, p_value, _, _ = chi2_contingency(contingency_table)
-        elif method.lower() == "fisher":
-            _, p_value = fisher_exact(contingency_table) 
-        return p_value
-
-    # returns a dataframe obtained computing the go-term-wise significance with a specific hpo-term
-    # returns the p-values of the statistical tests for each go-term
-    # it is possible to apply different statistical tests
-    # it is possible to apply a correction
-    # it can return the significant go terms only, based on the p_value (if no correction is applied) 
-    # or on the adjusted_p_value, if correction is applied
-    # By default, the correction parameter is set to None, so no correction is applied
-    def compute_significance(self, hpo_column:str, go_columns:list = None,
-                                method:str = "chi2", only_significant:bool=True,
-                                correction:str = None):
-            # if go_columns is none, all of them are considered (default)
-            if go_columns is None:
-                go_columns = self.go_gene_data.columns
-
-            # Apply the function across GO columns (sampled)
-            p_values = [self.compute_p_value(go_col, hpo_column, method=method) for go_col in go_columns]
-
-            results_df = pd.DataFrame({'GO_Term': go_columns, 'P_Value': p_values})
-
-            if correction == None:
-                results_df['Significant']  = results_df['P_Value'] < 0.05
-            else:
-                corrected_results = multipletests(results_df['P_Value'], method=correction)
-                results_df['Adjusted_P_Value'] = corrected_results[1]  # Corrected p-values
-                results_df['Significant'] = corrected_results[0]       # True/False for significance
-        
-            # Filter significant GO terms
-            if only_significant == True:
-                return results_df[results_df['Significant']].reset_index(drop=True)
-            else:
-                return results_df
-
+    
 
     def _associateId2Symbol(self, row, id_column, symbol_column):
         self.gene_id_symbol[row[id_column]] = row[symbol_column]
@@ -181,10 +125,107 @@ class DataManager:
         return combined_data
 
 
-    def get_id_associations(self):
-        return self.gene_id_symbol
+    def compute_p_value(self, go_column, hpo_column, method = "chi2"):
+        #get the series from the column names
+        hpo_series = self.hpo_gene_data[hpo_column]
+        go_series = self.go_gene_data[go_column]
+
+        # Align both Series to have the same index
+        hpo_series, go_series = hpo_series.align(go_series, join='inner')
+
+        # Confusion matrix components
+        both = ((go_series == 1) & (hpo_series == 1)).sum()
+        only_go = ((go_series == 1) & (hpo_series == 0)).sum()
+        only_hpo = ((go_series == 0) & (hpo_series == 1)).sum()
+        neither = ((go_series == 0) & (hpo_series == 0)).sum()
+        # Contingency table with Laplace Smoothing to prevent some cells to have frequency 0
+        contingency_table = [[both + 1, only_hpo + 1],
+                            [only_go + 1, neither + 1]]
+        p_value = 1
+        # Chi-Square test (or switch to Fisher's Exact Test if preferred)
+        if method.lower() == "chi2":
+            _, p_value, _, _ = chi2_contingency(contingency_table)
+        elif method.lower() == "fisher":
+            _, p_value = fisher_exact(contingency_table) 
+        return p_value
+    
+    def compute_p_value_batch(self, go_columns, hpo_column, method = "chi2"):
+        aligned_df = self.get_dataset(go_list=go_columns, hpo_list=hpo_column)
+
+        hpo_series = aligned_df[hpo_column]
+        # go_series = aligned_df[go_column]
+
+        hpo_present = (hpo_series == 1).values
+        hpo_absent = (hpo_series == 0).values
+
+        p_values = []
+
+        for go_col in go_columns:
+            go_series = aligned_df[go_col]
+            go_present = (go_series == 1).values
+            go_absent = (go_series == 0).values
+
+            # Confusion matrix components
+            both = (go_present & hpo_present).sum()
+            only_go = (go_present & hpo_absent).sum()
+            only_hpo = (go_absent & hpo_present).sum()
+            neither = (go_absent & hpo_absent).sum()
+
+            # Contingency table
+            contingency_table = [[both + 1, only_hpo + 1],
+                                [only_go + 1, neither + 1]]
+
+            # Compute p-value
+            p_value = 1
+            if method.lower() == "chi2":
+                _, p_value, _, _ = chi2_contingency(contingency_table)
+            elif method.lower() == "fisher":
+                _, p_value = fisher_exact(contingency_table)
+
+            p_values.append(p_value)
+
+        return p_values
+
+
+    # returns a dataframe obtained computing the go-term-wise significance with a specific hpo-term
+    # returns the p-values of the statistical tests for each go-term
+    # it is possible to apply different statistical tests
+    # it is possible to apply a correction
+    # it can return the significant go terms only, based on the p_value (if no correction is applied) 
+    # or on the adjusted_p_value, if correction is applied
+    # By default, the correction parameter is set to None, so no correction is applied
+    def compute_significance(self, hpo_column:str, go_columns:list = None,
+                                method:str = "chi2", only_significant:bool=True,
+                                correction:str = None):
+            # if go_columns is none, all of them are considered (default)
+            if go_columns is None:
+                go_columns = self.go_gene_data.columns
+
+            # Apply the function across GO columns
+            p_values = self.compute_p_values_batch(go_columns, hpo_column, method=method)
+            # p_values = [self.compute_p_value(go_col, hpo_column, method=method) for go_col in go_columns]
+
+            results_df = pd.DataFrame({'GO_Term': go_columns, 'P_Value': p_values})
+
+            if correction == None:
+                results_df['Significant']  = results_df['P_Value'] < 0.05
+            else:
+                corrected_results = multipletests(results_df['P_Value'], method=correction)
+                results_df['Adjusted_P_Value'] = corrected_results[1]  # Corrected p-values
+                results_df['Significant'] = corrected_results[0]       # True/False for significance
+        
+            # Filter significant GO terms
+            if only_significant == True:
+                return results_df[results_df['Significant']].reset_index(drop=True)
+            else:
+                return results_df
+
 
     # Show data
+
+    def get_id_associations(self):
+        return self.gene_id_symbol
+    
     def hpo_shape(self):
         return self.hpo_gene_data.shape
     def go_shape(self):
