@@ -113,13 +113,19 @@ class DataManager:
 
         # Filter the HPO-gene data based on the HPO list
         hpo_filtered_data = pd.DataFrame()
-        if self.hpo_gene_data is not None and hpo_list:
-            hpo_filtered_data = self.hpo_gene_data.loc[:, hpo_list]
-
+        if self.hpo_gene_data is not None:
+            if isinstance(hpo_list, str):
+                hpo_filtered_data = self.hpo_gene_data[[hpo_list]]
+            else:
+                hpo_filtered_data = self.hpo_gene_data.loc[:, hpo_list]
+            
         # Filter the GO-gene data based on the GO list
         go_filtered_data = pd.DataFrame()
-        if self.go_gene_data is not None and go_list:
-            go_filtered_data = self.go_gene_data.loc[:, go_list]
+        if self.go_gene_data is not None:
+            if isinstance(go_list, str):
+                go_filtered_data = self.go_gene_data[[go_list]]
+            else:
+                go_filtered_data = self.go_gene_data.loc[:, go_list]
 
         # Ensure indices represent the same set of genes
         if not hpo_filtered_data.empty and not go_filtered_data.empty:
