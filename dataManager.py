@@ -1,3 +1,4 @@
+from joblib import Parallel, delayed
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -163,6 +164,7 @@ class DataManager:
             _, p_value = fisher_exact(contingency_table) 
         return p_value
     
+
     def compute_p_values_batch(self, go_columns, hpo_column, method = "chi2"):
         aligned_df = self.get_dataset(go_list=go_columns, hpo_list=hpo_column)
 
@@ -195,10 +197,56 @@ class DataManager:
                 _, p_value, _, _ = chi2_contingency(contingency_table)
             elif method.lower() == "fisher":
                 _, p_value = fisher_exact(contingency_table)
-
+            else:
+                raise ValueError(f"Unsupported method: {method}")
+            
             p_values.append(p_value)
 
         return p_values
+
+
+    def compute_p_values_batch_parallel(self, go_columns, hpo_column, method="chi2"):
+        # Align the dataset once
+        aligned_df = self.get_dataset(go_list=go_columns, hpo_list=hpo_column)
+
+        hpo_series = aligned_df[hpo_column]
+        hpo_present = (hpo_series == 1).values
+        hpo_absent = (hpo_series == 0).values
+
+        # Helper function for parallel execution
+        def compute_p_value_for_column(go_col):
+            # go_series = aligned_df[go_col]
+            go_present = (aligned_df[go_col] == 1).values
+            go_absent = (aligned_df[go_col] == 0).values
+
+            # Confusion matrix components
+            both = (go_present & hpo_present).sum()
+            only_go = (go_present & hpo_absent).sum()
+            only_hpo = (go_absent & hpo_present).sum()
+            neither = (go_absent & hpo_absent).sum()
+
+            # Contingency table
+            contingency_table = [[both + 1, only_hpo + 1],
+                                [only_go + 1, neither + 1]]
+
+            # Compute p-value
+            if method.lower() == "chi2":
+                _, p_value, _, _ = chi2_contingency(contingency_table)
+            elif method.lower() == "fisher":
+                _, p_value = fisher_exact(contingency_table)
+            else:
+                raise ValueError(f"Unsupported method: {method}")
+
+            return p_value
+
+
+        # Use joblib for parallel computation of p-values
+        p_values = Parallel(n_jobs=-1, backend="loky")(
+            delayed(compute_p_value_for_column)(go_col) for go_col in go_columns
+        )
+
+        return p_values
+
 
 
     # returns a dataframe obtained computing the go-term-wise significance with a specific hpo-term
