@@ -5,4 +5,5 @@ backup/
 cProfile/
 trials/
 __pycache__/
+venv/
 *.pyc
