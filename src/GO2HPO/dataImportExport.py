@@ -43,7 +43,7 @@ class DataExporter:
                     attr_value.to_csv(f"{file_path}.csv", index=True)
             
             else:
-                raise TypeError(f"Unsupported attribute type: {type(attr_value)} for attribute {attr_name}")
+                print(f"Unsupported attribute type: {type(attr_value)} for attribute {attr_name}")
 
 
 
