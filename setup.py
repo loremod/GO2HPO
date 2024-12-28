@@ -3,6 +3,8 @@ from setuptools import setup, find_packages
 with open("requirements.txt") as f:
     install_requires = f.read().splitlines()
 
+print("\n\n__________________________________________________\nDetected packages:", find_packages(where="src"),"\n__________________________________________________\n\n\n")
+
 setup(
     name="GO2HPO",  
     version="0.1.0",
