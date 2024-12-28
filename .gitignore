@@ -7,3 +7,4 @@ trials/
 __pycache__/
 venv/
 *.pyc
+GO2HPO.egg-info/
