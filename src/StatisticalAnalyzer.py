@@ -109,7 +109,6 @@ class StatisticalAnalyzer:
         :param method: Statistical test method ("chi2" or "fisher").
         :return: List of p-values.
         """
-        # Extract GO matrix and HPO series
         go_matrix = aligned_data[go_columns]
         hpo_series = aligned_data[hpo_column]
 

@@ -1,7 +1,6 @@
 from joblib import Parallel, delayed
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
 from goatools.obo_parser import GODag
 from goatools.anno.genetogo_reader import Gene2GoReader
 from dataImportExport import DataExporter, DataImporter
