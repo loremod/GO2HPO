@@ -4,3 +4,4 @@ exp1.ipynb
 backup/
 cProfile/
 trials/
+/__pycache__
