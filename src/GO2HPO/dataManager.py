@@ -3,9 +3,9 @@ import pandas as pd
 import numpy as np
 from goatools.obo_parser import GODag
 from goatools.anno.genetogo_reader import Gene2GoReader
-from dataImportExport import DataExporter, DataImporter
-from LogManager import LogManager
-from StatisticalAnalyzer import StatisticalAnalyzer
+from .dataImportExport import DataExporter, DataImporter
+from .LogManager import LogManager
+from .StatisticalAnalyzer import StatisticalAnalyzer
 
 class DataManager:
     def __init__(self):
