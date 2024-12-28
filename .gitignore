@@ -1,1 +1,6 @@
 exp[0-9]*.ipynb
+exp1.ipynb
+*.prof
+backup/
+cProfile/
+trials/
