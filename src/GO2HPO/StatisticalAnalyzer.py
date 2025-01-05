@@ -3,6 +3,8 @@ import pandas as pd
 from scipy.stats import chi2_contingency, fisher_exact
 from statsmodels.stats.multitest import multipletests
 import numpy as np
+from typing import Union
+
 class StatisticalAnalyzer:
     def __init__(self, hpo_gene_data, go_gene_data):
         self.hpo_gene_data = hpo_gene_data
@@ -181,7 +183,7 @@ class StatisticalAnalyzer:
     # By default, the correction parameter is set to None, so no correction is applied
     def compute_significance(self, aligned_data, hpo_column:str, go_columns:list = None,
                                 method:str = "chi2", only_significant:bool=True,
-                                correction:str = None,
+                                correction: Union[str, list] = None,
                                 approach="batch"):
             # if go_columns is none, all of them are considered (default)
             if go_columns is None:
@@ -206,12 +208,22 @@ class StatisticalAnalyzer:
             if correction == None:
                 results_df['Significant']  = results_df['P_Value'] < 0.05
             else:
-                corrected_results = multipletests(results_df['P_Value'], method=correction)
-                results_df['Adjusted_P_Value'] = corrected_results[1]  # Corrected p-values
-                results_df['Significant'] = corrected_results[0]       # True/False for significance
+                if isinstance(correction, str):
+                    correction = [correction]  # Convert string to list containing the string
+
+                for method in correction:  # Iterate over each correction method in the list
+                    corrected_results = multipletests(results_df['P_Value'], method=method)
+                    results_df[f'Adjusted_P_Value_{method}'] = corrected_results[1]  # Corrected p-values
+                    results_df[f'Significant_{method}'] = corrected_results[0]       # True/False for significance
+
         
             # Filter significant GO terms
             if only_significant == True:
-                return results_df[results_df['Significant']].reset_index(drop=True)
+                    if isinstance(correction, str):  # Single correction method
+                        return results_df[results_df['Significant']].reset_index(drop=True)
+                    else:  # Multiple correction methods
+                        # Filter rows where at least one "Significant_{method}" column is True
+                        significant_columns = [f'Significant_{method}' for method in correction]
+                        return results_df[results_df[significant_columns].any(axis=1)].reset_index(drop=True)
             else:
                 return results_df
