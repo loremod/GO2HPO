@@ -121,6 +121,7 @@ class StatisticalAnalyzer:
         contingency_table = np.array([both + 1, only_hpo + 1, only_go + 1, neither + 1]).T.reshape(-1, 2, 2)
 
         # Compute p-values
+        p_values = []
         if method.lower() == "chi2":
             p_values = [chi2_contingency(ct)[1] for ct in contingency_table]
         elif method.lower() == "fisher":
@@ -185,45 +186,91 @@ class StatisticalAnalyzer:
                                 method:str = "chi2", only_significant:bool=True,
                                 correction: Union[str, list] = None,
                                 approach="batch"):
-            # if go_columns is none, all of them are considered (default)
-            if go_columns is None:
-                go_columns = self.go_gene_data.columns
+        # if go_columns is none, all of them are considered (default)
+        if go_columns is None:
+            go_columns = self.go_gene_data.columns
 
-            p_values = []
-            if approach == "batch":
-                p_values = self.compute_p_values_batch(aligned_data, go_columns, hpo_column, method=method)
-            elif approach == "vectorized":
-                p_values = self.compute_p_values_vectorized(aligned_data, go_columns, hpo_column, method=method)
-            elif approach == "parallel":
-                p_values = self.compute_p_values_parallel(aligned_data, go_columns, hpo_column, method=method)
-            elif approach == "naive":
-                p_values = [self.compute_p_value(go_col, hpo_column, method=method) for go_col in go_columns]
-            elif approach == "restriction": # smart or restriction
-                p_values = [] # TO DO
-            else:
-                p_values = [self.compute_p_value(go_col, hpo_column, method=method) for go_col in go_columns]
+        p_values = []
+        if approach == "batch":
+            p_values = self.compute_p_values_batch(aligned_data, go_columns, hpo_column, method=method)
+        elif approach == "vectorized":
+            p_values = self.compute_p_values_vectorized(aligned_data, go_columns, hpo_column, method=method)
+        elif approach == "parallel":
+            p_values = self.compute_p_values_parallel(aligned_data, go_columns, hpo_column, method=method)
+        elif approach == "naive":
+            p_values = [self.compute_p_value(go_col, hpo_column, method=method) for go_col in go_columns]
+        elif approach == "restriction": # smart or restriction
+            p_values = [] # TO DO
+        else:
+            p_values = [self.compute_p_value(go_col, hpo_column, method=method) for go_col in go_columns]
 
-            results_df = pd.DataFrame({'GO_Term': go_columns, 'P_Value': p_values})
+        results_df = pd.DataFrame({'GO_Term': go_columns, 'P_Value': p_values})
 
-            if correction == None:
-                results_df['Significant']  = results_df['P_Value'] < 0.05
-            else:
-                if isinstance(correction, str):
-                    correction = [correction]  # Convert string to list containing the string
+        if correction == None:
+            results_df['Significant']  = results_df['P_Value'] < 0.05
+        else:
+            if isinstance(correction, str):
+                correction = [correction]  # Convert string to list containing the string
 
-                for method in correction:  # Iterate over each correction method in the list
-                    corrected_results = multipletests(results_df['P_Value'], method=method)
-                    results_df[f'Adjusted_P_Value_{method}'] = corrected_results[1]  # Corrected p-values
-                    results_df[f'Significant_{method}'] = corrected_results[0]       # True/False for significance
+            for method in correction:  # Iterate over each correction method in the list
+                corrected_results = multipletests(results_df['P_Value'], method=method)
+                results_df[f'Adjusted_P_Value_{method}'] = corrected_results[1]  # Corrected p-values
+                results_df[f'Significant_{method}'] = corrected_results[0]       # True/False for significance
 
-        
-            # Filter significant GO terms
-            if only_significant == True:
-                    if isinstance(correction, str):  # Single correction method
-                        return results_df[results_df['Significant']].reset_index(drop=True)
-                    else:  # Multiple correction methods
-                        # Filter rows where at least one "Significant_{method}" column is True
-                        significant_columns = [f'Significant_{method}' for method in correction]
-                        return results_df[results_df[significant_columns].any(axis=1)].reset_index(drop=True)
-            else:
-                return results_df
+    
+        # Filter significant GO terms
+        if only_significant == True:
+                if isinstance(correction, str):  # Single correction method
+                    return results_df[results_df['Significant']].reset_index(drop=True)
+                else:  # Multiple correction methods
+                    # Filter rows where at least one "Significant_{method}" column is True
+                    significant_columns = [f'Significant_{method}' for method in correction]
+                    return results_df[results_df[significant_columns].any(axis=1)].reset_index(drop=True)
+        else:
+            return results_df
+
+
+    def compute_significance_optimized(self, go_data, hpo_series,
+                                method:str = "chi2", only_significant:bool=True,
+                                correction: Union[str, list] = None):
+
+        go_columns = go_data.columns
+
+        p_values = []
+
+        # Compute confusion matrix components using vectorized operations
+        both, only_go, only_hpo, neither = self.compute_confusion_matrices_vectorized(go_data, hpo_series)
+        # Contingency table (with Laplace smoothing)
+        contingency_table = np.array([both + 1, only_hpo + 1, only_go + 1, neither + 1]).T.reshape(-1, 2, 2)
+
+        # Compute p-values
+        if method.lower() == "chi2":
+            p_values = [chi2_contingency(ct)[1] for ct in contingency_table]
+        elif method.lower() == "fisher":
+            p_values = [fisher_exact(ct)[1] for ct in contingency_table]
+        else:
+            raise ValueError(f"Unsupported method: {method}")
+
+        results_df = pd.DataFrame({'GO_Term': go_columns, 'P_Value': p_values})
+
+        if correction == None:
+            results_df['Significant']  = results_df['P_Value'] < 0.05
+        else:
+            if isinstance(correction, str):
+                correction = [correction]  # Convert string to list containing the string
+            for method in correction:  # Iterate over each correction method in the list
+                corrected_results = multipletests(results_df['P_Value'], method=method)
+                results_df[f'Adjusted_P_Value_{method}'] = corrected_results[1]  # Corrected p-values
+                results_df[f'Significant_{method}'] = corrected_results[0]       # True/False for significance
+
+    
+        # Filter significant GO terms
+        if only_significant == True:
+                if isinstance(correction, str):  # Single correction method
+                    return results_df[results_df['Significant']].reset_index(drop=True)
+                else:  # Multiple correction methods
+                    # Filter rows where at least one "Significant_{method}" column is True
+                    significant_columns = [f'Significant_{method}' for method in correction]
+                    return results_df[results_df[significant_columns].any(axis=1)].reset_index(drop=True)
+        else:
+            return results_df
