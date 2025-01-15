@@ -1,4 +1,5 @@
 from joblib import Parallel, delayed
+from typing import Union
 import pandas as pd
 import numpy as np
 from goatools.obo_parser import GODag
@@ -146,12 +147,12 @@ class DataManager:
     # Statistical Significance Computation
 
     # I explicited the parameters only because I want them to be suggested by the editor
-    def compute_significance(self, hpo_column:str, go_columns:list = None,
+    def compute_significance(self, hpo_column:str, go_columns:list = None, data = None,
                                 method:str = "chi2", only_significant:bool=True,
-                                correction:str = None, approach:str = "batch"):
+                                correction:Union[str, list] = None, approach:str = "batch"):
         if self.statistical_analyzer is None:
             self.initialize_statistical_analyzer()
-        aligned_data = self.get_dataset(go_list=go_columns, hpo_list=hpo_column)
+        aligned_data = self.get_dataset(go_list=go_columns, hpo_list=hpo_column) if data == None else data
         approach = approach.lower()
         return self.statistical_analyzer.compute_significance(aligned_data=aligned_data,
                                                               hpo_column = hpo_column, 
@@ -161,28 +162,39 @@ class DataManager:
                                                               correction = correction,
                                                               approach = approach)
 
-    def compute_p_values_batch(self, go_columns, hpo_column, method="chi2"):
+    def compute_significance_optimized(self, go_data, hpo_series,
+                                method:str = "chi2", only_significant:bool=True,
+                                correction: Union[str, list] = None):
         if self.statistical_analyzer is None:
             self.initialize_statistical_analyzer()
-        aligned_data = self.get_dataset(go_list=go_columns, hpo_list=[hpo_column])
+        return self.statistical_analyzer.compute_significance_optimized(go_data=go_data,
+                                                                        hpo_series=hpo_series,
+                                                                        method=method,
+                                                                        only_significant=only_significant,
+                                                                        correction=correction)
+
+    def compute_p_values_batch(self, go_columns, hpo_column, data = None, method="chi2"):
+        if self.statistical_analyzer is None:
+            self.initialize_statistical_analyzer()
+        aligned_data = self.get_dataset(go_list=go_columns, hpo_list=[hpo_column]) if data == None else data
         return self.statistical_analyzer.compute_p_values_batch(aligned_data = aligned_data,
                                                                 go_columns = go_columns,
                                                                 hpo_column = hpo_column,
                                                                 method = method)
 
-    def compute_p_values_batch_parallel(self, go_columns, hpo_column, method="chi2"):
+    def compute_p_values_batch_parallel(self, go_columns, hpo_column, data = None, method="chi2"):
         if self.statistical_analyzer is None:
             self.initialize_statistical_analyzer()
-        aligned_data = self.get_dataset(go_list=go_columns, hpo_list=[hpo_column])
+        aligned_data = self.get_dataset(go_list=go_columns, hpo_list=[hpo_column]) if data == None else data
         return self.statistical_analyzer.compute_p_values_batch_parallel(aligned_data = aligned_data,
                                                                 go_columns = go_columns,
                                                                 hpo_column = hpo_column,
                                                                 method = method)
     
-    def compute_p_values_vectorized(self, go_columns, hpo_column, method="chi2"):
+    def compute_p_values_vectorized(self, go_columns, hpo_column, data = None, method="chi2"):
         if self.statistical_analyzer is None:
             self.initialize_statistical_analyzer()
-        aligned_data = self.get_dataset(go_list=go_columns, hpo_list=[hpo_column])
+        aligned_data = self.get_dataset(go_list=go_columns, hpo_list=[hpo_column]) if data == None else data
         return self.statistical_analyzer.compute_p_values_vectorized(aligned_data = aligned_data,
                                                                 go_columns = go_columns,
                                                                 hpo_column = hpo_column,
