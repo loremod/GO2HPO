@@ -87,8 +87,8 @@ class StatisticalAnalyzer:
         hpo_array = hpo_series.to_numpy()
 
         # Ensure hpo_array aligns with go_array's dimensions
-        hpo_present = (hpo_array == 1).reshape(-1, 1)  # Convert to column vector
-        hpo_absent = (hpo_array == 0).reshape(-1, 1)   # Convert to column vector
+        hpo_present = (hpo_array == 1).reshape(-1, 1)  
+        hpo_absent = (hpo_array == 0).reshape(-1, 1)   
 
         # Compute confusion matrix components
         both = (go_array & hpo_present).sum(axis=0)  # Both GO and HPO present
@@ -141,7 +141,6 @@ class StatisticalAnalyzer:
         hpo_present = (hpo_series == 1).values
         hpo_absent = (hpo_series == 0).values
 
-        # Helper function for parallel execution
         def compute_p_value_for_column(go_col):
             # go_series = aligned_data[go_col]
             go_present = (aligned_data[go_col] == 1).values
